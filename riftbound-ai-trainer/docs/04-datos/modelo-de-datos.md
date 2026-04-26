@@ -2,6 +2,7 @@
 
 > Basado en Riftbound Core Rules (RUP3). Modo de juego: 1v1 Duel.
 > Victory Score: 8 puntos. 2 Battlefields. 40 cartas Main Deck. 12 runas.
+> Dataset: Origins (OGN) desde RiftCodex API.
 
 ---
 
@@ -14,6 +15,9 @@ enum CardType {
   UNIT = "unit",
   GEAR = "gear",
   SPELL = "spell",
+  BATTLEFIELD = "battlefield",
+  LEGEND = "legend",
+  RUNE = "rune",
 }
 ```
 
@@ -27,6 +31,7 @@ enum Domain {
   BODY = "body",
   CHAOS = "chaos",
   ORDER = "order",
+  COLORLESS = "colorless",
 }
 ```
 
@@ -37,7 +42,7 @@ enum Rarity {
   COMMON = "common",
   UNCOMMON = "uncommon",
   RARE = "rare",
-  LEGENDARY = "legendary",
+  EPIC = "epic",
 }
 ```
 
@@ -262,83 +267,6 @@ interface FacedownCard {
 }
 ```
 
-### Cards
-
-```typescript
-type Card = UnitCard | GearCard | SpellCard;
-
-interface CardBase {
-  id: string;
-  name: string;
-  type: CardType;
-  domain: Domain[];
-  energyCost: number;
-  powerCost: number;
-  requiredPower: DomainPower[];
-  rulesText: string;
-  effectText?: string;
-  mightBonus?: number;
-  keywords: Keyword[];
-  tags: string[];
-  rarity: Rarity;
-}
-
-interface UnitCard extends CardBase {
-  type: CardType.UNIT;
-  might: number;
-  isChampion: boolean;
-  isSignature: boolean;
-}
-
-interface GearCard extends CardBase {
-  type: CardType.GEAR;
-}
-
-interface SpellCard extends CardBase {
-  type: CardType.SPELL;
-}
-```
-
-### LegendCard
-
-```typescript
-interface LegendCard {
-  id: string;
-  name: string;
-  domains: Domain[];
-  championTag: string;
-  abilities: AbilityOnCard[];
-}
-```
-
-### BattlefieldCard
-
-```typescript
-interface BattlefieldCard {
-  id: string;
-  name: string;
-  abilities: AbilityOnCard[];
-}
-```
-
-### RuneCard
-
-```typescript
-interface RuneCard {
-  id: string;
-  domain: Domain;
-}
-```
-
-### ChanneledRune
-
-```typescript
-interface ChanneledRune {
-  card: RuneCard;
-  exhausted: boolean;
-}
-```
-
 ### RunePool
 
 ```typescript
@@ -348,48 +276,101 @@ interface RunePool {
 }
 ```
 
-### DomainPower
+---
+
+## Cartas (dataset)
+
+### Card (union type)
 
 ```typescript
-interface DomainPower {
-  domain: Domain;
-  amount: number;
+type Card = UnitCard | GearCard | SpellCard | BattlefieldCard | LegendCard | RuneCard;
+```
+
+### CardBase (campos comunes)
+
+```typescript
+interface CardBase {
+  id: string;
+  name: string;
+  type: CardType;
+  domain: Domain[];
+  rulesText: string;
+  flavourText?: string;
+  keywords: Keyword[];
+  tags: string[];
+  rarity: Rarity;
 }
 ```
 
-### AbilityOnCard
+### UnitCard
 
 ```typescript
-type AbilityOnCard =
-  | PassiveAbility
-  | ActivatedAbility
-  | TriggeredAbility
-  | DependentKeywordAbility;
-
-interface AbilityBase {
-  text: string;
+interface UnitCard extends CardBase {
+  type: CardType.UNIT;
+  energyCost: number;
+  powerCost: number;
+  might: number;
+  isChampion: boolean;
+  isSignature: boolean;
 }
+```
 
-interface PassiveAbility extends AbilityBase {
-  type: "passive";
+### GearCard
+
+```typescript
+interface GearCard extends CardBase {
+  type: CardType.GEAR;
+  energyCost: number;
+  powerCost: number;
+  mightBonus?: number;
+  isSignature: boolean;
 }
+```
 
-interface ActivatedAbility extends AbilityBase {
-  type: "activated";
-  cost: string;
-  effect: string;
+### SpellCard
+
+```typescript
+interface SpellCard extends CardBase {
+  type: CardType.SPELL;
+  energyCost: number;
+  powerCost: number;
+  isSignature: boolean;
 }
+```
 
-interface TriggeredAbility extends AbilityBase {
-  type: "triggered";
-  condition: string;
-  effect: string;
+### BattlefieldCard
+
+```typescript
+interface BattlefieldCard extends CardBase {
+  type: CardType.BATTLEFIELD;
+  orientation: "portrait" | "landscape";
 }
+```
 
-interface DependentKeywordAbility extends AbilityBase {
-  type: "dependent_keyword";
-  keyword: Keyword;
-  dependentText: string;
+### LegendCard
+
+```typescript
+interface LegendCard extends CardBase {
+  type: CardType.LEGEND;
+  championTag: string;
+  isSignature: boolean;
+}
+```
+
+### RuneCard
+
+```typescript
+interface RuneCard extends CardBase {
+  type: CardType.RUNE;
+}
+```
+
+### ChanneledRune
+
+```typescript
+interface ChanneledRune {
+  card: RuneCard;
+  exhausted: boolean;
 }
 ```
 
@@ -578,51 +559,15 @@ type TargetChoice =
   | ChainAbilityTarget
   | GraveyardCardTarget;
 
-interface UnitTarget {
-  type: "unit";
-  unitId: string;
-}
-
-interface BattlefieldTarget {
-  type: "battlefield";
-  battlefieldId: number;
-}
-
-interface PlayerTarget {
-  type: "player";
-  player: Player;
-}
-
-interface LegendTarget {
-  type: "legend";
-  player: Player;
-}
-
-interface RuneTarget {
-  type: "rune";
-  runeId: string;
-}
-
-interface GearTarget {
-  type: "gear";
-  gearId: string;
-}
-
-interface ChainSpellTarget {
-  type: "spell_on_chain";
-  chainItemId: string;
-}
-
-interface ChainAbilityTarget {
-  type: "ability_on_chain";
-  chainItemId: string;
-}
-
-interface GraveyardCardTarget {
-  type: "card_in_graveyard";
-  cardId: string;
-  player: Player;
-}
+interface UnitTarget { type: "unit"; unitId: string; }
+interface BattlefieldTarget { type: "battlefield"; battlefieldId: number; }
+interface PlayerTarget { type: "player"; player: Player; }
+interface LegendTarget { type: "legend"; player: Player; }
+interface RuneTarget { type: "rune"; runeId: string; }
+interface GearTarget { type: "gear"; gearId: string; }
+interface ChainSpellTarget { type: "spell_on_chain"; chainItemId: string; }
+interface ChainAbilityTarget { type: "ability_on_chain"; chainItemId: string; }
+interface GraveyardCardTarget { type: "card_in_graveyard"; cardId: string; player: Player; }
 ```
 
 ---

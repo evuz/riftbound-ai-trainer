@@ -2,62 +2,112 @@
 
 ## Fuente de datos
 
-Inicialmente crearemos un subset manual de ~50 cartas en formato JSON para desarrollar y probar el sistema.
+Las cartas se obtienen desde la [API de RiftCodex](https://riftcodex.com/docs/endpoints/cards/). El dataset inicial incluye todas las cartas del set **Origins (OGN)**, filtradas para eliminar ediciones especiales (overnumbered, alternate art, metadata.signature, showcase, promo).
 
 ## Estructura del dataset
 
 ```
 data/
 └── cartas/
-    ├── subset-inicial.json     # ~50 cartas para desarrollo
-    └── full-dataset.json       # Dataset completo (futuro)
+    ├── ogn.json              # Set Origins completo (~260 cartas)
+    ├── sfd.json              # Spiritforged (futuro)
+    └── unk.json              # Unleashed (futuro)
 ```
+
+## Script de descarga
+
+```bash
+npx tsx fetch-cards-v3.ts
+```
+
+El script:
+1. Descarga todas las cartas de un set desde RiftCodex
+2. Filtra duplicados (overnumbered, alternate_art, metadata.signature, showcase, promo)
+3. Convierte marcadores del texto (:rb_exhaust: → [Exhaust], etc.)
+4. Parsea keywords
+5. Guarda el JSON en data/cartas/
+
+## Tipos de carta
+
+| Tipo | Origen | Zona inicial | Ejemplo |
+|------|--------|--------------|---------|
+| Unit | Main Deck / Champion Zone | Board (Base o Battlefield) | Jinx, Rebel |
+| Gear | Main Deck | Board (Base) | Guardian Angel |
+| Spell | Main Deck | Chain → Trash | Cull the Weak |
+| Battlefield | Proporcionado al inicio | Battlefield Zone | Void Gate |
+| Legend | Proporcionado al inicio | Legend Zone | Jinx - Loose Cannon |
+| Rune | Rune Deck | Board (Base) | Fury Rune |
 
 ## Campos de una carta
 
+### CardBase (común a todas)
+
 | Campo | Tipo | Descripción |
 |-------|------|-------------|
-| id | string | Identificador único (ej: "rift_001") |
+| id | string | Identificador único (riftbound_id) |
 | name | string | Nombre de la carta |
-| type | CardType | "unit", "spell", "legend" |
-| subtype | string? | Subtipo (ej: "champion") |
-| powerCost | number | Coste de poder para jugarla |
-| requiredRunes | RuneColor[] | Runas necesarias (ej: ["blue", "orange"]) |
-| attack | number? | Ataque base (solo unidades) |
-| defense | number? | Defensa base (solo unidades) |
-| abilities | string[] | Habilidades: "ambush", "ganking", "deflect", etc. |
-| rulesText | string | Texto completo de reglas de la carta |
-| rarity | Rarity | "common", "uncommon", "rare", "legendary" |
+| type | CardType | UNIT, GEAR, SPELL, BATTLEFIELD, LEGEND, RUNE |
+| domain | Domain[] | Dominios |
+| rulesText | string | Texto de reglas limpio |
+| flavourText | string? | Texto de sabor |
+| keywords | Keyword[] | Keywords detectadas automáticamente |
+| tags | string[] | Etiquetas (campeón, especie, facción) |
+| rarity | Rarity | COMMON, UNCOMMON, RARE, EPIC |
 
-## Ejemplo de carta
+### Unit
 
-```json
-{
-  "id": "rift_001",
-  "name": "Aurora, the Freljordian Witch",
-  "type": "unit",
-  "subtype": "champion",
-  "powerCost": 3,
-  "requiredRunes": ["blue", "blue"],
-  "attack": 4,
-  "defense": 3,
-  "abilities": ["ambush"],
-  "rulesText": "Ambush (You may play this during a Showdown.)",
-  "rarity": "legendary"
-}
-```
+| Campo extra | Tipo | Descripción |
+|-------------|------|-------------|
+| energyCost | number | Coste de energía |
+| powerCost | number | Cantidad de símbolos de poder requeridos |
+| might | number | Might base |
+| isChampion | boolean | ¿Tiene supertipo Champion? |
+| isSignature | boolean | ¿Tiene supertipo Signature? |
 
-## Tipos de cartas
+### Gear
 
-| Tipo | Descripción |
-|------|-------------|
-| unit | Criatura que se juega en un battlefield. Tiene ataque y defensa. |
-| spell | Hechizo de efecto inmediato. Va al cementerio tras resolverse. |
-| legend | Carta de tipo "comandante" con habilidades únicas y persistentes. |
-| rune | Carta de recurso. Se canaliza desde el mazo de runas. No se juega desde la mano. |
+| Campo extra | Tipo | Descripción |
+|-------------|------|-------------|
+| energyCost | number | Coste de energía |
+| powerCost | number | Cantidad de símbolos de poder requeridos |
+| mightBonus | number? | Bonus de Might que aporta |
+| isSignature | boolean | ¿Tiene supertipo Signature? |
 
-## Fuentes futuras
+### Spell
 
-- API oficial de Riot Games (si se publica)
-- Scraping de bases de datos comunitarias
-- Datasets mantenidos por la comunidad de Riftbound
+| Campo extra | Tipo | Descripción |
+|-------------|------|-------------|
+| energyCost | number | Coste de energía |
+| powerCost | number | Cantidad de símbolos de poder requeridos |
+| isSignature | boolean | ¿Tiene supertipo Signature? |
+
+### Battlefield
+
+| Campo extra | Tipo | Descripción |
+|-------------|------|-------------|
+| orientation | "portrait" | "landscape" | Orientación de la carta |
+
+### Legend
+
+| Campo extra | Tipo | Descripción |
+|-------------|------|-------------|
+| championTag | string | Tag del campeón vinculado |
+| isSignature | boolean | ¿Tiene supertipo Signature? |
+
+### Rune
+
+Sin campos extra.
+
+## Filtros aplicados
+
+| Filtro | Motivo |
+|--------|--------|
+| overnumbered: true | Ediciones con numeración extendida (coleccionables) |
+| alternate_art: true | Artes alternativos |
+| metadata.signature: true | Firmas de artistas |
+| rarity: showcase | Ediciones showcase |
+| rarity: promo | Ediciones promocionales |
+
+## isSignature
+
+Se obtiene de `classification.supertype === "Signature"`, no de `metadata.signature`. Las cartas Signature son las vinculadas a un campeón (ej: Icathian Rain de Kai'Sa).
