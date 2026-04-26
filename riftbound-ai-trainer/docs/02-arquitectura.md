@@ -3,17 +3,26 @@
 ## Diagrama General
 
 ```
-[UI] <--WebSocket--> [GameGateway (NestJS)]
-                         |
-                 [OrchestratorService]
-                         |
-    +--------+--------+--------+--------+
+[UI / CLI] <--WebSocket/HTTP--> [Presentation Layer]
+                                      |
+                               [Application Layer]
+                                      |
+    +--------+--------+--------+--------+--------+
+    |        |        |        |        |        |
+[TableMgr] [Rules]  [Judge] [Sparring] [Coach] [Orchestrator]
     |        |        |        |        |
-[TableMgr] [Judge] [Sparring] [Coach]
-    |        |        |        |
-[GameState] [VectorStore] [LLMClient] [VectorStore]
-            [LLMClient]              [LLMClient]
+[Domain Models]  [LLM]  [ChromaDB]  [SQLite]
 ```
+
+## Principios de Diseño
+
+1. **Domain no conoce Infrastructure**: Los modelos de dominio no importan nada de infraestructura.
+2. **No hay interfaces innecesarias**: Si solo hay una implementación, se usa la clase directamente. Las interfaces se crean cuando surge una segunda implementación.
+3. **Implementaciones concretas en application**: La lógica de negocio vive aquí.
+4. **Adaptadores en infrastructure**: LLM, ChromaDB, SQLite, carga de cartas.
+5. **Inyección de dependencias por constructor**: Las dependencias se pasan por constructor como clases concretas.
+6. **Código en inglés**: Todo el código fuente usa nombres en inglés. La documentación, en español.
+7. **Arquitectura hexagonal (puertos y adaptadores)**: Separación clara entre dominio, aplicación, infraestructura y presentación.
 
 ## Stack Tecnológico
 
@@ -29,84 +38,193 @@
 | LLMs | DeepSeek / Claude / GPT-4 (vía API HTTP) | Razonamiento estratégico |
 | Tests | Vitest | Rápido, compatible con ecosistema Vite, nativo ESM |
 
+## Estructura del Código
+
+```
+src/
+├── domain/                          # Capa de dominio (sin dependencias externas)
+│   ├── models/                      # Entidades, value objects, enums
+│   │   ├── card.ts
+│   │   ├── deck.ts
+│   │   ├── game-state.ts
+│   │   ├── player.ts
+│   │   ├── battlefield.ts
+│   │   ├── chain.ts
+│   │   ├── showdown.ts
+│   │   ├── rune-pool.ts
+│   │   └── actions.ts
+│   │
+│   ├── enums/                       # Enums compartidos
+│   │   ├── card-type.ts
+│   │   ├── domain.ts
+│   │   ├── rarity.ts
+│   │   ├── keyword.ts
+│   │   ├── turn-phase.ts
+│   │   └── player.ts
+│   │
+│   ├── schemas/                     # Schemas Zod (validación)
+│   │   ├── card.schema.ts
+│   │   ├── game-state.schema.ts
+│   │   └── actions.schema.ts
+│   │
+│   └── ports/                       # Interfaces SOLO cuando haya >1 implementación
+│
+├── application/                     # Capa de aplicación (casos de uso)
+│   ├── table-manager/
+│   │   ├── table-manager.service.ts
+│   │   └── table-manager.service.spec.ts
+│   │
+│   ├── rules-engine/
+│   │   ├── rules-engine.service.ts
+│   │   ├── chain-resolver.ts
+│   │   ├── combat-resolver.ts
+│   │   └── rules-engine.service.spec.ts
+│   │
+│   ├── judge/
+│   │   ├── judge.service.ts
+│   │   └── judge.service.spec.ts
+│   │
+│   ├── sparring/
+│   │   ├── sparring.service.ts
+│   │   └── sparring.service.spec.ts
+│   │
+│   ├── coach/
+│   │   ├── coach.service.ts
+│   │   └── coach.service.spec.ts
+│   │
+│   └── orchestrator/
+│       ├── orchestrator.service.ts
+│       └── orchestrator.service.spec.ts
+│
+├── infrastructure/                  # Capa de infraestructura (adaptadores)
+│   ├── persistence/
+│   │   ├── sqlite/
+│   │   │   ├── sqlite.client.ts
+│   │   │   ├── game.repository.ts
+│   │   │   └── action-log.repository.ts
+│   │   └── json/
+│   │       └── card-loader.ts       # Carga cartas desde JSON
+│   │
+│   ├── llm/
+│   │   ├── llm-client.ts
+│   │   └── prompts/
+│   │       ├── judge.prompt.ts
+│   │       ├── sparring.prompt.ts
+│   │       └── coach.prompt.ts
+│   │
+│   ├── rag/
+│   │   ├── vector-store.client.ts
+│   │   ├── rules-indexer.ts
+│   │   └── strategy-indexer.ts
+│   │
+│   └── config/
+│       ├── env.ts
+│       └── database.config.ts
+│
+├── presentation/                    # Capa de presentación
+│   ├── api/
+│   │   ├── game.module.ts
+│   │   ├── game.controller.ts
+│   │   └── game.gateway.ts          # WebSocket
+│   │
+│   └── cli/
+│       └── cli.ts
+│
+├── shared/                          # Utilidades compartidas
+│   ├── types.ts
+│   ├── logger.ts
+│   └── errors.ts
+│
+└── main.ts                          # Punto de entrada
+```
+
+## Dependencias entre capas
+
+```
+presentation
+    ↓ depende de
+application
+    ↓ depende de
+domain
+    ↑ implementado por
+infrastructure
+```
+
+- **Presentation** conoce Application y Domain
+- **Application** conoce Domain e Infrastructure
+- **Domain** no conoce a nadie
+- **Infrastructure** implementa lo que Application necesita
+
 ## Agentes del Sistema
 
-### 1. TableManagerService (Gestor de Mesa)
+### 1. TableManager (Gestor de Mesa)
 
+- **Capa:** Application
 - **Rol:** Única fuente de verdad del estado de juego
 - **Tipo:** Determinista, sin IA, sin dependencias externas
-- **Responsabilidades:**
-  - Mantener y actualizar el estado completo del juego
-  - Ejecutar transiciones de estado una vez validadas por el Juez
-  - Servir el estado actual a quien lo solicite
-  - Inicializar nuevas partidas
+- **Dependencias:** Solo modelos de Domain
 
 ```
 Entrada:  Action + player
 Salida:   GameState actualizado
 ```
 
-### 2. JudgeService (Juez de Reglas)
+### 2. RulesEngine (Motor de Reglas)
 
-- **Rol:** Validar la legalidad de cualquier acción propuesta
-- **Tipo:** LLM + RAG sobre reglas oficiales
-- **Responsabilidades:**
-  - Recibir estado del juego y acción propuesta
-  - Consultar reglas relevantes en ChromaDB
-  - Solicitar veredicto al LLM
-  - Devolver si la acción es válida y por qué
+- **Capa:** Application
+- **Rol:** Validar acciones y resolver cadenas FEPR
+- **Tipo:** Determinista, basado en Core Rules
+- **Dependencias:** TableManager (lee el estado para validar)
+
+```
+Entrada:  GameState + Action propuesta + player
+Salida:   { valid: boolean, explanation: string }
+```
+
+### 3. JudgeService (Juez de Reglas)
+
+- **Capa:** Application
+- **Rol:** Validar con LLM + RAG para casos complejos
+- **Tipo:** Agente LLM + ChromaDB
+- **Dependencias:** RulesEngine (fallback), VectorStore, LlmClient
 
 ```
 Entrada:  GameState + Action propuesta + player
 Salida:   { valid: boolean, explanation: string, ruleApplied?: string }
 ```
 
-### 3. SparringService (Oponente IA)
+### 4. SparringService (Oponente IA)
 
+- **Capa:** Application
 - **Rol:** Jugador oponente con nivel de juego experto
-- **Tipo:** LLM con razonamiento estratégico
-- **Responsabilidades:**
-  - Analizar el estado del juego desde su perspectiva
-  - Generar líneas de juego candidatas
-  - Seleccionar y devolver la mejor acción
-  - Para el MVP: nivel fijo avanzado, sin adaptación ni memoria
+- **Tipo:** Agente LLM con razonamiento estratégico
+- **Dependencias:** LlmClient
+- **Para el MVP:** nivel fijo avanzado, sin adaptación ni memoria
 
 ```
 Entrada:  GameState + difficultyLevel
 Salida:   { action: Action, reasoning?: string }
 ```
 
-### 4. CoachService (Tutor)
+### 5. CoachService (Tutor)
 
-- **Rol:** Analizar decisiones del jugador y sugerir alternativas
-- **Tipo:** LLM + RAG sobre documentos de estrategia
-- **Responsabilidades:**
-  - Recibir estado antes, acción tomada, y estado después
-  - Consultar conceptos estratégicos en ChromaDB
-  - Generar análisis y alternativas
-  - **Solo se activa bajo demanda explícita del jugador**
+- **Capa:** Application
+- **Rol:** Analizar decisiones y sugerir alternativas
+- **Tipo:** Agente LLM + RAG sobre estrategia
+- **Dependencias:** VectorStore, LlmClient
+- **Solo se activa bajo demanda explícita del jugador**
 
 ```
 Entrada:  GameState (antes) + Action tomada + GameState (después)
 Salida:   { analysis: string, alternatives: PlayAlternative[], strategicConcept?: string }
 ```
 
-### 5. OrchestratorService (Orquestador Central)
+### 6. OrchestratorService (Orquestador Central)
 
+- **Capa:** Application
 - **Rol:** Director de la partida, único punto de coordinación
-- **Tipo:** Servicio NestJS que orquesta a los otros 4
-- **Responsabilidades:**
-  - Iniciar partidas
-  - Gestionar el flujo de turnos y fases
-  - Recibir acciones del humano, pasarlas por el Juez, ejecutarlas
-  - Solicitar y ejecutar la acción del Sparring
-  - Invocar al Coach solo cuando el jugador lo pide
-  - Notificar cambios de estado al GameGateway
-
-```
-Dependencias: TableManagerService, JudgeService, SparringService, CoachService
-Expuesto vía: GameGateway (WebSocket)
-```
+- **Tipo:** Servicio que orquesta a los otros
+- **Dependencias:** TableManager, RulesEngine, JudgeService, SparringService, CoachService
 
 ## Comunicación entre Agentes
 
@@ -118,160 +236,42 @@ Todos los agentes viven en el mismo runtime de Node.js. La comunicación es medi
 tableManager.getState()
 tableManager.applyAction(action, player)
 
-judgeService.validate({ state, action, player })
+rulesEngine.validate(state, action, player)
 
-sparringService.decide({ state, level })
+judgeService.validate(state, action, player)
+
+sparringService.decide(state, level)
 
 coachService.analyze({ stateBefore, actionTaken, stateAfter })
 ```
 
 - **Ningún agente** conoce al OrchestratorService ni a otros agentes
 - **Solo el Orchestrator** tiene la visión completa del flujo
-- **El Coach se invoca con await** en el MVP (bajo demanda). Si en el futuro se automatiza, se puede lanzar sin await para no bloquear
 
 ## Flujo de un Turno
 
 ```
 1. Orchestrator notifica a la UI: "Turno del jugador humano"
 2. UI envía acción del jugador vía WebSocket
-3. Orchestrator llama a judgeService.validate(estado, accion, "human")
-4. Si no es válida:
-   -> Orchestrator notifica error a la UI
-   -> Vuelve al paso 2
-5. Si es válida:
-   -> Orchestrator llama a tableManager.applyAction(accion, "human")
-   -> Orchestrator notifica nuevo estado a la UI
-   [Si el jugador pidió análisis:]
-   -> Orchestrator llama a coachService.analyze(...)
-   -> Orchestrator envía feedback a la UI
-6. Orchestrator llama a sparringService.decide(estado, "fijo_avanzado")
-7. Orchestrator llama a judgeService.validate(estado, accionSparring, "sparring")
-8. Orchestrator llama a tableManager.applyAction(accionSparring, "sparring")
-9. Orchestrator notifica nuevo estado a la UI
-10. Vuelve al paso 1 (siguiente turno)
+3. Orchestrator → RulesEngine.validate(estado, accion, "human")
+4. Si no es válida → notificar error a la UI. Volver a esperar acción
+5. Si es válida → TableManager.applyAction(accion, "human")
+6. Orchestrator notifica nuevo estado a la UI
+   [Si el jugador pidió análisis → CoachService.analyze(...) → feedback a la UI]
+7. Orchestrator → SparringService.decide(estado, "fijo_avanzado")
+8. Orchestrator → RulesEngine.validate(estado, accionSparring, "sparring")
+9. Orchestrator → TableManager.applyAction(accionSparring, "sparring")
+10. Orchestrator notifica nuevo estado a la UI
+11. Vuelve al paso 1 (siguiente turno)
 ```
 
 ## Almacenamiento
 
 | Dato | Ubicación | Tecnología |
 |------|-----------|------------|
-| Estado de partida activa | Memoria del proceso Node.js | Variable en TableManagerService |
+| Estado de partida activa | Memoria del proceso Node.js | Variable en TableManager |
 | Histórico de partidas | Base de datos relacional | SQLite |
 | Cartas (dataset) | Archivos JSON en data/ | Sistema de archivos |
 | Reglas del juego (RAG) | Base de datos vectorial | ChromaDB |
 | Estrategia (RAG) | Base de datos vectorial | ChromaDB |
 | Memoria del Sparring | No implementado en MVP | Graphology (futuro) |
-
-## Estructura del Código
-
-```
-src/
-├── core/
-│   ├── game-state.ts
-│   ├── game-state.schema.ts
-│   ├── actions.ts
-│   └── types.ts
-│
-├── agents/
-│   ├── orchestrator/
-│   │   └── orchestrator.service.ts
-│   ├── table-manager/
-│   │   └── table-manager.service.ts
-│   ├── judge/
-│   │   └── judge.service.ts
-│   ├── sparring/
-│   │   └── sparring.service.ts
-│   └── coach/
-│       └── coach.service.ts
-│
-├── rag/
-│   ├── vector-store.service.ts
-│   ├── rules-indexer.ts
-│   └── strategy-indexer.ts
-│
-├── llm/
-│   └── llm-client.ts
-│
-├── api/
-│   ├── game.module.ts
-│   └── game.gateway.ts
-│
-└── main.ts
-```
-
-## Interfaces de los Agentes (contratos TypeScript)
-
-### ITableManager
-
-```typescript
-interface ITableManager {
-  getState(): GameState;
-  applyAction(action: Action, player: Player): GameState;
-  startGame(humanDeck: Card[], sparringDeck: Card[]): GameState;
-  advancePhase(): GameState;
-}
-```
-
-### IJudgeService
-
-```typescript
-interface IJudgeService {
-  validate(request: JudgeRequest): Promise<Verdict>;
-}
-
-interface JudgeRequest {
-  state: GameState;
-  proposedAction: Action;
-  player: Player;
-}
-
-interface Verdict {
-  valid: boolean;
-  explanation: string;
-  ruleApplied?: string;
-}
-```
-
-### ISparringService
-
-```typescript
-interface ISparringService {
-  decide(request: SparringRequest): Promise<SparringResponse>;
-}
-
-interface SparringRequest {
-  state: GameState;
-  level: DifficultyLevel;
-}
-
-interface SparringResponse {
-  action: Action;
-  reasoning?: string;
-}
-```
-
-### ICoachService
-
-```typescript
-interface ICoachService {
-  analyze(request: CoachRequest): Promise<CoachFeedback>;
-}
-
-interface CoachRequest {
-  stateBefore: GameState;
-  actionTaken: Action;
-  stateAfter: GameState;
-}
-
-interface CoachFeedback {
-  analysis: string;
-  alternatives: PlayAlternative[];
-  strategicConcept?: string;
-}
-
-interface PlayAlternative {
-  description: string;
-  pros: string;
-  cons: string;
-}
-```
