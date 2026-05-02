@@ -8,6 +8,7 @@
     "clean": "turbo clean"
   },
   "devDependencies": {
+    "@typescript/native-preview": "7.0.0-dev.20260421.2",
     "turbo": "^2.0.0"
   },
   "packageManager": "pnpm@10.33.2",
