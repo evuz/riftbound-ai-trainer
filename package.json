@@ -5,10 +5,12 @@
   "scripts": {
     "dev": "turbo dev",
     "build": "turbo build",
-    "clean": "turbo clean"
+    "clean": "turbo clean",
+    "lint": "turbo lint"
   },
   "devDependencies": {
     "@typescript/native-preview": "7.0.0-dev.20260421.2",
+    "oxlint": "^1.62.0",
     "turbo": "^2.0.0"
   },
   "packageManager": "pnpm@10.33.2",

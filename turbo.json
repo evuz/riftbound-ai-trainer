@@ -10,6 +10,10 @@
     },
     "clean": {
       "dependsOn": ["^clean"]
+    },
+    "lint": {
+      "dependsOn": ["^build"],
+      "inputs": ["**/*.ts", ".oxlintrc.json"]
     }
   }
 }
