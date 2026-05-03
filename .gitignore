@@ -32,3 +32,6 @@ npm-debug.log*
 
 # Cache
 .cache/
+
+.agents
+skills-lock.json
