@@ -14,6 +14,10 @@
     "lint": {
       "dependsOn": ["^build"],
       "inputs": ["**/*.ts", ".oxlintrc.json"]
+    },
+    "test": {
+      "dependsOn": ["build"],
+      "inputs": ["**/*.spec.ts", "**/*.test.ts", "vitest.config.ts"]
     }
   }
 }
