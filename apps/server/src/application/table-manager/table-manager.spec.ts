@@ -18,7 +18,7 @@ describe('TableManager', () => {
     const furyRunes = cardLoader.getRunes();
     const legends = cardLoader.getLegends();
     const battlefields = cardLoader.getBattlefields();
-
+    
     humanDeck = {
       legendId: legends[0].id,
       championId: furyUnits.find(u => u.isChampion)?.id || furyUnits[0].id,
@@ -59,7 +59,7 @@ describe('TableManager', () => {
     expect(state.phase).toBe(TurnPhase.CHANNEL);
     const activePlayer = state.activePlayer === 'human' ? state.human : state.sparring;
     expect(activePlayer.channeledRuneCount).toBe(2);
-
+    
     state = tableManager.advancePhase();
     expect(state.phase).toBe(TurnPhase.DRAW);
 
@@ -86,5 +86,6 @@ describe('TableManager', () => {
     const state = tableManager.advancePhase();
 
     expect(state.activePlayer).not.toBe(firstPlayer);
+    expect(state.turnNumber).toBe(2);
   });
 });

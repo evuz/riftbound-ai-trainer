@@ -4,7 +4,7 @@ import { cardSchema } from '../../../domain/schemas/card.schema';
 import * as fs from 'fs';
 import * as path from 'path';
 
-const DATA_PATH = path.resolve(__dirname, '../../../data/cartas');
+const DATA_PATH = path.resolve(__dirname, '../../../../../../data/cartas');
 
 export class CardLoader {
   private cards: Card[] = [];

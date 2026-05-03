@@ -141,24 +141,30 @@ export class Game {
 
     switch (this.phase) {
       case TurnPhase.AWAKEN:
+        // CR 315.1: Ready all game objects
         this.phase = TurnPhase.BEGINNING;
-        break;
-      case TurnPhase.BEGINNING:
         this.handleScoring(player);
+        break;
+
+      case TurnPhase.BEGINNING:
         this.phase = TurnPhase.CHANNEL;
-        break;
-      case TurnPhase.CHANNEL:
         player.channelRunes(2);
-        this.phase = TurnPhase.DRAW;
         break;
-      case TurnPhase.DRAW:
+
+      case TurnPhase.CHANNEL:
+        this.phase = TurnPhase.DRAW;
         player.drawCard();
         player.emptyRunePool();
+        break;
+
+      case TurnPhase.DRAW:
         this.phase = TurnPhase.MAIN;
         break;
+
       case TurnPhase.MAIN:
         this.phase = TurnPhase.ENDING;
         break;
+
       case TurnPhase.ENDING:
         this.endTurn();
         break;
