@@ -16,7 +16,7 @@
       "inputs": ["**/*.ts", ".oxlintrc.json"]
     },
     "test": {
-      "dependsOn": ["build"],
+      "dependsOn": [],
       "inputs": ["**/*.spec.ts", "**/*.test.ts", "vitest.config.ts"]
     }
   }
